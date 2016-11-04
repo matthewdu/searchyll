@@ -49,14 +49,61 @@ module Searchyll
 
     # Prepare our indexing run by creating a new index.
     def prepare_index
-      create_index = http_post("/#{elasticsearch_index_name}")
+      create_index = http_put("/#{elasticsearch_index_name}")
+      # Custom indexing option using edge-ngram.
+      # A combination of https://qbox.io/blog/multi-field-partial-word-autocomplete-in-elasticsearch-using-ngrams
+      # and https://www.elastic.co/guide/en/elasticsearch/guide/current/_index_time_search_as_you_type.html
       create_index.body = {
-        index: {
+        settings: {
           number_of_shards:   configuration.elasticsearch_number_of_shards,
           number_of_replicas: 0,
-          refresh_interval:   -1
+          refresh_interval:   -1,
+          analysis: {
+            filter: {
+              edge_ngram_filter: {
+                type: "edge_ngram",
+                min_gram: 1,
+                max_gram: 15
+              }
+            },
+            analyzer: {
+              edge_ngram_analyzer: {
+                type: "custom",
+                tokenizer: "standard",
+                filter: [
+                  "lowercase",
+                  "asciifolding",
+                  "edge_ngram_filter"
+                ]
+              },
+              custom_search_analyzer: {
+                type: "custom",
+                tokenizer: "standard",
+                filter: [
+                  "lowercase",
+                  "asciifolding"
+                ]
+              }
+            }
+          }
+        },
+        mappings: {
+          configuration.elasticsearch_default_type => {
+            properties: {
+              text: {
+                type: "string",
+                analyzer: "edge_ngram_analyzer",
+                search_analyzer: "custom_search_analyzer"
+              },
+              title: {
+                type: "string",
+                analyzer: "edge_ngram_analyzer",
+                search_analyzer: "custom_search_analyzer"
+              }
+            }
+          }
         }
-      }.to_json # TODO: index settings
+      }.to_json
 
       http_start do |http|
         resp = http.request(create_index)
@@ -98,6 +145,7 @@ module Searchyll
     def http_request(klass, path)
       req = klass.new(path)
       req.content_type = 'application/json'
+      req['Accept'] = 'application/json'
       req.basic_auth(uri.user, uri.password)
       req
     end
@@ -147,7 +195,7 @@ module Searchyll
       refresh = http_post("/#{elasticsearch_index_name}/_refresh")
 
       # add replication to the new index
-      add_replication = http_put("/#{elasticsearch_index_name}/_settings")
+      add_replication = http_post("/#{elasticsearch_index_name}/_settings")
       add_replication.body = { index: { number_of_replicas: configuration.elasticsearch_number_of_replicas }}.to_json
 
       # hot swap the index into the canonical alias

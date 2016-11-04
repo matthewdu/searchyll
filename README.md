@@ -1,5 +1,15 @@
 # Searchyll
 
+## Differences with omc/searchyll
+This fork has a custom indexing option using edge-ngram that better supports search as you type. The code
+can be found in `lib/searchyll/indexer.rb`.
+
+The index is a combination of https://qbox.io/blog/multi-field-partial-word-autocomplete-in-elasticsearch-using-ngrams
+and https://www.elastic.co/guide/en/elasticsearch/guide/current/_index_time_search_as_you_type.html
+
+## This is for Elasticsearch v2.4 only
+Elasticsearch v5.0 expects index creation to be a PUT request whereas v2.4 expects a POST request.
+
 Search for Jekyll apps. A plugin for indexing your pages into a search engine.
 
 Currently supports Elasticsearch, we're also considering modular support for
